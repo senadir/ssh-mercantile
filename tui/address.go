@@ -144,15 +144,27 @@ func (m *Model) viewAddress() string {
 	var rows []string
 	for i, ti := range m.addrInputs {
 		label := addrLabels[i]
-		marker := "  "
+		var line string
 		if i == m.addrIdx {
-			marker = styles.Key.Render("▸ ")
+			bar := styles.SelectBar.Render("▍ ")
+			labelPart := styles.SelectedItem.Render(padR(label+":", 32))
+			line = bar + labelPart + ti.View()
+		} else {
+			line = "  " + styles.Subtle.Render(padR(label+":", 32)) + ti.View()
 		}
-		rows = append(rows, marker+styles.Subtle.Render(padR(label+":", 32))+ti.View())
+		rows = append(rows, line)
 	}
+
+	cta := renderButton(buttonOpts{
+		Label:   "Continue to shipping",
+		Hotkey:  "enter",
+		Variant: btnPrimary,
+		Focused: true,
+	})
+	indent := lipgloss.NewStyle().MarginLeft(2)
 
 	blocks := []string{"", title, hint, ""}
 	blocks = append(blocks, rows...)
-	blocks = append(blocks, "", "  "+styles.Selected.Render(" Continue to shipping (enter) "))
+	blocks = append(blocks, "", indent.Render(cta))
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }

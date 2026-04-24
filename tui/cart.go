@@ -81,15 +81,21 @@ func (m *Model) viewCart() string {
 			variation = " " + styles.Muted.Render("("+strings.Join(parts, ", ")+")")
 		}
 		name := truncate(stripHTML(it.Name), 46)
-		line := fmt.Sprintf("%-46s  x%-3d  %s",
-			name,
-			it.Quantity,
-			styles.Accent.Render(formatPriceFromPrices(it.Totals.LineTotal, it.Prices)),
-		)
+		priceText := formatPriceFromPrices(it.Totals.LineTotal, it.Prices)
+
+		var line string
 		if i == m.cartIdx {
-			line = "▸ " + styles.Selected.Render(line)
+			rowBg := styles.SelectedRow
+			bar := styles.SelectBar.Inherit(rowBg).Render("▍ ")
+			nameCell := styles.SelectedItem.Inherit(rowBg).Render(fmt.Sprintf("%-46s", name))
+			qty := rowBg.Render(fmt.Sprintf("  x%-3d  ", it.Quantity))
+			price := styles.SelectedItem.Inherit(rowBg).Render(priceText)
+			line = bar + nameCell + qty + price
 		} else {
-			line = "  " + line
+			bar := "  "
+			nameCell := fmt.Sprintf("%-46s", name)
+			price := styles.Accent.Render(priceText)
+			line = fmt.Sprintf("%s%s  x%-3d  %s", bar, nameCell, it.Quantity, price)
 		}
 		rows = append(rows, line+variation)
 	}
@@ -118,8 +124,14 @@ func (m *Model) viewCart() string {
 	blocks = append(blocks, "")
 	blocks = append(blocks, totals...)
 
-	cta := styles.Selected.Render(" Proceed to checkout (enter) ")
-	blocks = append(blocks, "", "  "+cta)
+	cta := renderButton(buttonOpts{
+		Label:   "Proceed to checkout",
+		Hotkey:  "enter",
+		Variant: btnPrimary,
+		Focused: true,
+	})
+	indent := lipgloss.NewStyle().MarginLeft(2)
+	blocks = append(blocks, "", indent.Render(cta))
 
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }

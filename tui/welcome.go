@@ -10,10 +10,8 @@ import (
 	"mercantile/styles"
 )
 
-const welcomeLogo = `
-  █▀▄▀█ █▀▀ █▀█ █▀▀ ▄▀█ █▄ █ ▀█▀ █ █   █▀▀
-  █ ▀ █ ██▄ █▀▄ █▄▄ █▀█ █ ▀█  █  █ █▄▄ ██▄
-`
+const welcomeLogo = `█▀▄▀█ █▀▀ █▀█ █▀▀ ▄▀█ █▄ █ ▀█▀ █ █   █▀▀
+█ ▀ █ ██▄ █▀▄ █▄▄ █▀█ █ ▀█  █  █ █▄▄ ██▄`
 
 func (m *Model) updateWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 	key, ok := msg.(tea.KeyMsg)
@@ -59,7 +57,7 @@ func (m *Model) viewWelcome() string {
 
 	intro := lipgloss.NewStyle().
 		Foreground(styles.ColorFg).
-		Render("The WordPress merch store — now browsable from your terminal.\nBuilt on WooCommerce Store API. Cart lives server-side; checkout hands off to the web.")
+		Render(wrap("The WordPress merch store — now browsable from your terminal. Built on WooCommerce Store API. Cart lives server-side; checkout hands off to the web.", m.contentWidth()))
 
 	shortcuts := []struct{ key, label string }{
 		{"a", "Apparel"},
@@ -92,11 +90,7 @@ func (m *Model) viewWelcome() string {
 		box,
 	)
 
-	// center horizontally on wide terminals
-	if m.width > 0 {
-		return lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(blocks)
-	}
-	return blocks
+	return lipgloss.NewStyle().PaddingLeft(2).Render(blocks)
 }
 
 func padR(s string, n int) string {

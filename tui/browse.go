@@ -81,20 +81,28 @@ func (m *Model) viewBrowse() string {
 	var rows []string
 	for i := start; i < end; i++ {
 		p := m.browseItems[i]
-		displayName := stripHTML(p.Name)
-		name := truncate(displayName, 50)
-		price := formatPriceFromPrices(p.Prices.Price, p.Prices)
-		typ := ""
-		if p.Type == "variable" {
-			typ = styles.Muted.Render(" (options)")
-		}
-		line := fmt.Sprintf("%-50s %s%s", name, styles.Accent.Render(price), typ)
+		name := truncate(stripHTML(p.Name), 50)
+		priceText := formatPriceFromPrices(p.Prices.Price, p.Prices)
+
+		var bar, nameCell, price, typ string
 		if i == m.browseIdx {
-			line = styles.Selected.Render("▸ " + truncate(displayName, 48) + "  " + formatPriceFromPrices(p.Prices.Price, p.Prices))
+			rowBg := styles.SelectedRow
+			bar = styles.SelectBar.Inherit(rowBg).Render("▍ ")
+			nameCell = styles.SelectedItem.Inherit(rowBg).Render(fmt.Sprintf("%-50s ", name))
+			price = styles.SelectedItem.Inherit(rowBg).Render(priceText)
+			if p.Type == "variable" {
+				typ = styles.Muted.Inherit(rowBg).Render(" (options)")
+			}
 		} else {
-			line = "  " + line
+			bar = "  "
+			nameCell = fmt.Sprintf("%-50s ", name)
+			price = styles.Accent.Render(priceText)
+			if p.Type == "variable" {
+				typ = styles.Muted.Render(" (options)")
+			}
 		}
-		rows = append(rows, line)
+
+		rows = append(rows, bar+nameCell+price+typ)
 	}
 
 	if end < len(m.browseItems) {
