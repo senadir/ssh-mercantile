@@ -70,11 +70,66 @@ type Model struct {
 	addrIdx    int
 
 	// shipping state
-	shippingIdx int // flat index across packages*rates
+	shippingIdx  int // flat index across packages*rates
 	shippingFlat []shippingOption
 
 	// search state
 	searchInput textinput.Model
+
+	// easter egg: konami code on welcome triggers a short "party mode"
+	konamiBuf  []string
+	partyUntil time.Time
+}
+
+type endPartyMsg struct{}
+
+// partyDuration is how long Wapuu sticks around after the konami code.
+const partyDuration = 10 * time.Second
+
+// konamiSeq is the classic konami sequence minus B/A, since those are
+// already taken by other welcome shortcuts.
+var konamiSeq = []string{"up", "up", "down", "down", "left", "right", "left", "right"}
+
+func konamiMatch(buf []string) bool {
+	if len(buf) != len(konamiSeq) {
+		return false
+	}
+	for i, k := range konamiSeq {
+		if buf[i] != k {
+			return false
+		}
+	}
+	return true
+}
+
+// partyMode reports whether the easter egg is currently active.
+func (m *Model) partyMode() bool {
+	return time.Now().Before(m.partyUntil)
+}
+
+// renderCountdownBar returns a horizontal bar that depletes from full to
+// empty over partyDuration. Filled portion in WP blue, empty in muted
+// grey, centered across the terminal width. Re-renders on every spinner
+// tick (~100ms) so the animation is smooth.
+func (m *Model) renderCountdownBar() string {
+	remaining := time.Until(m.partyUntil)
+	if remaining < 0 {
+		remaining = 0
+	}
+	const barWidth = 40
+	filled := int(float64(barWidth) * float64(remaining) / float64(partyDuration))
+	if filled < 0 {
+		filled = 0
+	}
+	if filled > barWidth {
+		filled = barWidth
+	}
+	bar := lipgloss.NewStyle().Foreground(styles.ColorAccent).Render(strings.Repeat("█", filled)) +
+		styles.Muted.Render(strings.Repeat("░", barWidth-filled))
+	if m.width > 0 {
+		return lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(bar)
+	}
+	return bar
 }
 
 type shippingOption struct {
@@ -156,6 +211,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cart = msg.cart
 		m.addingToCart = false
 		return m, m.setStatus("Added to cart", false)
+
+	case endPartyMsg:
+		// The 5-second party timer fired; nothing to clear since partyMode()
+		// just compares against partyUntil, but this triggers a re-render.
+		return m, nil
 
 	case spinner.TickMsg:
 		// Keep the spinner animating. Each tick returns the next tick,
@@ -260,7 +320,11 @@ func (m *Model) View() string {
 }
 
 func (m *Model) renderHeader() string {
-	brand := styles.Brand.Render("mercantile")
+	brandText := "mercantile"
+	if m.partyMode() {
+		brandText = "✨ mercantile ✨"
+	}
+	brand := styles.Brand.Render(brandText)
 	tag := styles.Muted.Render("// the WordPress store, over SSH")
 
 	cartBadge := ""
@@ -318,6 +382,19 @@ func (m *Model) renderNav() string {
 }
 
 func (m *Model) renderFooter() string {
+	if m.partyMode() {
+		party := lipgloss.NewStyle().
+			Foreground(styles.ColorAccent).
+			Bold(true).
+			Render("✨ konami unlocked; wapuu says: “buy my cute face on merch!” ✨")
+		rule := styles.Muted.Render(strings.Repeat("─", m.width))
+		centered := lipgloss.NewStyle().
+			Width(m.width).
+			Align(lipgloss.Center).
+			MarginTop(1).
+			Render(party)
+		return rule + "\n" + centered
+	}
 	var help string
 	switch m.view {
 	case viewWelcome:

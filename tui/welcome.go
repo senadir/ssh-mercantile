@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,7 +19,25 @@ func (m *Model) updateWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	switch strings.ToLower(key.String()) {
+	keyStr := strings.ToLower(key.String())
+
+	// Easter egg: track arrow-key sequences against the konami code. Arrows
+	// have no other meaning on the welcome screen, so this is safe to do
+	// before the regular switch.
+	if keyStr == "up" || keyStr == "down" || keyStr == "left" || keyStr == "right" {
+		m.konamiBuf = append(m.konamiBuf, keyStr)
+		if len(m.konamiBuf) > len(konamiSeq) {
+			m.konamiBuf = m.konamiBuf[len(m.konamiBuf)-len(konamiSeq):]
+		}
+		if konamiMatch(m.konamiBuf) {
+			m.konamiBuf = nil
+			m.partyUntil = time.Now().Add(partyDuration)
+			return m, tea.Tick(partyDuration, func(time.Time) tea.Msg { return endPartyMsg{} })
+		}
+		return m, nil
+	}
+
+	switch keyStr {
 	case "q":
 		return m, tea.Quit
 	case "a":
@@ -53,6 +72,14 @@ func (m *Model) updateWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) viewWelcome() string {
+	if m.partyMode() {
+		// Easter egg payload: rainbow half-block Wapuu takes over the
+		// welcome body for the duration of party mode, with a depleting
+		// countdown bar above so the dismiss isn't a surprise.
+		centered := lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center)
+		return m.renderCountdownBar() + "\n\n" + centered.Render(renderWapuu())
+	}
+
 	logo := styles.Brand.Render(welcomeLogo)
 
 	intro := lipgloss.NewStyle().
