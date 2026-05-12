@@ -73,11 +73,12 @@ func (m *Model) updateWelcome(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) viewWelcome() string {
 	if m.partyMode() {
-		// Easter egg payload: rainbow half-block Wapuu takes over the
-		// welcome body for the duration of party mode, with a depleting
-		// countdown bar above so the dismiss isn't a surprise.
+		// Easter egg payload: a tall sparkle field at the top (where
+		// they have room to drift upward), Wapuu centered below with
+		// rainbow bands cascading down through him, and the depleting
+		// countdown bar at the bottom just above the footer message.
 		centered := lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center)
-		return m.renderCountdownBar() + "\n\n" + centered.Render(renderWapuu())
+		return m.renderSparkles() + "\n" + centered.Render(renderWapuu()) + "\n\n" + m.renderCountdownBar()
 	}
 
 	logo := styles.Brand.Render(welcomeLogo)

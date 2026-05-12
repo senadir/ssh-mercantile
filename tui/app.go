@@ -79,6 +79,7 @@ type Model struct {
 	// easter egg: konami code on welcome triggers a short "party mode"
 	konamiBuf  []string
 	partyUntil time.Time
+	sparkles   []sparkleParticle
 }
 
 type endPartyMsg struct{}
@@ -213,8 +214,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.setStatus("Added to cart", false)
 
 	case endPartyMsg:
-		// The 5-second party timer fired; nothing to clear since partyMode()
-		// just compares against partyUntil, but this triggers a re-render.
+		// Party's over — drop any drifting sparkles so a fresh konami
+		// starts from a clean field.
+		m.sparkles = nil
 		return m, nil
 
 	case spinner.TickMsg:
@@ -222,6 +224,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// so this self-sustains once started from Init.
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		// Piggyback sparkle advancement on the spinner cadence (~100ms).
+		if m.partyMode() {
+			m.advanceSparkles()
+		}
 		return m, cmd
 
 	case productsLoadedMsg:

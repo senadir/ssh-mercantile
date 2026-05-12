@@ -3,6 +3,7 @@ package tui
 import (
 	_ "embed"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -112,13 +113,19 @@ func renderWapuu() string {
 		}
 	}
 
+	// Time-based rainbow offset — shifts every 500ms so the bands appear
+	// to cascade down through Wapuu. UnixMilli/500 gives an integer that
+	// advances 2x per second, which we add to each row's index when
+	// picking a palette color.
+	offset := int(time.Now().UnixMilli() / 500)
+
 	// Second pass: pad to maxLen, colorize, join.
 	var out strings.Builder
-	for colorIdx, row := range rawRows {
+	for rowIdx, row := range rawRows {
 		for len(row) < maxLen {
 			row = append(row, ' ')
 		}
-		color := lipgloss.Color(wapuuRainbow[colorIdx%len(wapuuRainbow)])
+		color := lipgloss.Color(wapuuRainbow[(rowIdx+offset)%len(wapuuRainbow)])
 		out.WriteString(lipgloss.NewStyle().Foreground(color).Render(string(row)))
 		out.WriteByte('\n')
 	}
