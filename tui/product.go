@@ -23,6 +23,39 @@ func (m *Model) productFocusCount() int {
 	return len(m.variationAttributes()) + 2
 }
 
+// addToCartDisabled reports whether the Add to cart button should be
+// shown as disabled — i.e. the product is variable but the user hasn't
+// picked every option yet.
+func (m *Model) addToCartDisabled() bool {
+	if m.product == nil {
+		return true
+	}
+	if m.product.Type != "variable" {
+		return false
+	}
+	for _, a := range m.variationAttributes() {
+		if m.productChoice[a.Taxonomy] == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// triggerAddToCart centralises the logic for pressing Add to cart via
+// either the "a" hotkey or Enter on the focused button. It respects the
+// disabled and in-flight states so a double-press can't fire two API
+// calls.
+func (m *Model) triggerAddToCart() (tea.Model, tea.Cmd) {
+	if m.addingToCart {
+		return m, nil
+	}
+	if m.addToCartDisabled() {
+		return m, m.setStatus("Pick every option first", true)
+	}
+	m.addingToCart = true
+	return m, m.addCurrentToCart()
+}
+
 func (m *Model) variationAttributes() []api.Attribute {
 	if m.product == nil {
 		return nil
@@ -60,22 +93,22 @@ func (m *Model) updateProduct(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "right", "l":
 		m.cycleAttr(1)
 	case "a":
-		return m, m.addCurrentToCart()
+		return m.triggerAddToCart()
 	case "c":
 		m.push(viewCart)
 		return m, loadCartCmd(m.client)
 	case "enter":
-		// if focused on Add to cart
 		attrs := m.variationAttributes()
-		if m.productIdx == len(attrs) {
-			return m, m.addCurrentToCart()
-		}
-		if m.productIdx == len(attrs)+1 {
+		switch m.productIdx {
+		case len(attrs):
+			return m.triggerAddToCart()
+		case len(attrs) + 1:
 			m.pop()
 			return m, nil
+		default:
+			// on an attribute row: cycle
+			m.cycleAttr(1)
 		}
-		// on an attribute row: cycle
-		m.cycleAttr(1)
 	}
 	return m, nil
 }
@@ -197,23 +230,36 @@ func (m *Model) viewProduct() string {
 				break
 			}
 		}
-		line := fmt.Sprintf("  %s: %s   %s", a.Name, styles.Accent.Render(currentName), styles.Muted.Render("(← →)"))
+
+		var line string
 		if i == m.productIdx {
-			line = styles.Selected.Render(fmt.Sprintf(" %s: %s ", a.Name, currentName)) + "  " + styles.Muted.Render("(← →)")
-			line = "  " + line
+			rowBg := styles.SelectedRow
+			bar := styles.SelectBar.Inherit(rowBg).Render("▍ ")
+			label := styles.SelectedItem.Inherit(rowBg).Render(fmt.Sprintf("%s: ", a.Name))
+			value := styles.SelectedItem.Inherit(rowBg).Render(currentName)
+			hint := styles.Muted.Inherit(rowBg).Render("   (← →)")
+			line = bar + label + value + hint
+		} else {
+			line = fmt.Sprintf("  %s: %s   %s", a.Name, styles.Accent.Render(currentName), styles.Muted.Render("(← →)"))
 		}
 		rows = append(rows, line)
 	}
 
-	// Add to cart button
-	addBtn := "  [ Add to cart ]"
-	if m.productIdx == len(attrs) {
-		addBtn = "  " + styles.Selected.Render(" Add to cart (a) ")
-	}
-	backBtn := "  [ Back ]"
-	if m.productIdx == len(attrs)+1 {
-		backBtn = "  " + styles.Selected.Render(" Back (esc) ")
-	}
+	addBtn := renderButton(buttonOpts{
+		Label:    "Add to cart",
+		Hotkey:   "a",
+		Variant:  btnPrimary,
+		Focused:  m.productIdx == len(attrs),
+		Disabled: m.addToCartDisabled(),
+		Loading:  m.addingToCart,
+		Spinner:  m.spinner.View(),
+	})
+	backBtn := renderButton(buttonOpts{
+		Label:   "Back",
+		Hotkey:  "esc",
+		Variant: btnSecondary,
+		Focused: m.productIdx == len(attrs)+1,
+	})
 
 	blocks := []string{
 		"",
@@ -226,7 +272,8 @@ func (m *Model) viewProduct() string {
 		blocks = append(blocks, "", styles.Muted.Render("Options"))
 		blocks = append(blocks, rows...)
 	}
-	blocks = append(blocks, "", addBtn, backBtn)
+	indent := lipgloss.NewStyle().MarginLeft(2)
+	blocks = append(blocks, "", indent.Render(addBtn), "", indent.Render(backBtn))
 
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }

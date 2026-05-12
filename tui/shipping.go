@@ -86,9 +86,14 @@ func (m *Model) viewShipping() string {
 			continue
 		}
 		for _, r := range pkg.ShippingRates {
-			line := "  " + formatShippingRate(r)
+			var line string
 			if flatIdx == m.shippingIdx {
-				line = "▸ " + styles.Selected.Render(" "+formatShippingRate(r)+" ")
+				rowBg := styles.SelectedRow
+				bar := styles.SelectBar.Inherit(rowBg).Render("▍ ")
+				text := styles.SelectedItem.Inherit(rowBg).Render(formatShippingRate(r))
+				line = bar + text
+			} else {
+				line = "  " + formatShippingRate(r)
 			}
 			rows = append(rows, line)
 			flatIdx++
@@ -97,6 +102,13 @@ func (m *Model) viewShipping() string {
 
 	blocks := []string{"", title}
 	blocks = append(blocks, rows...)
-	blocks = append(blocks, "", "  "+styles.Selected.Render(" Confirm (enter) "))
+	cta := renderButton(buttonOpts{
+		Label:   "Confirm",
+		Hotkey:  "enter",
+		Variant: btnPrimary,
+		Focused: true,
+	})
+	indent := lipgloss.NewStyle().MarginLeft(2)
+	blocks = append(blocks, "", indent.Render(cta))
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }

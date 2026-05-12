@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -52,10 +53,14 @@ type Model struct {
 	browseSource  string // "apparel","accessories","all","search:<q>","category:<id>"
 
 	// product state
-	product       *api.Product
-	productIdx    int // focused attribute index or button
-	productChoice map[string]string // attribute taxonomy -> term slug
+	product        *api.Product
+	productIdx     int // focused attribute index or button
+	productChoice  map[string]string // attribute taxonomy -> term slug
 	productLoading bool
+	addingToCart   bool // Add to cart API call is in flight
+
+	// shared spinner — ticks forever once Init runs, buttons query its View()
+	spinner spinner.Model
 
 	// cart state
 	cartIdx int
@@ -88,6 +93,14 @@ func NewModel(client *api.Client, siteURL string) *Model {
 	}
 	m.setupAddressInputs()
 	m.setupSearchInput()
+
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	// Pale grey-blue — reads as "working" without competing with the
+	// surrounding button's bold white text on WP-blue fill.
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#cbd5e1"))
+	m.spinner = sp
+
 	return m
 }
 
@@ -95,6 +108,7 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadCategoriesCmd(m.client),
 		loadCartCmd(m.client),
+		m.spinner.Tick,
 	)
 }
 
@@ -140,7 +154,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case addedToCartMsg:
 		m.cart = msg.cart
+		m.addingToCart = false
 		return m, m.setStatus("Added to cart", false)
+
+	case spinner.TickMsg:
+		// Keep the spinner animating. Each tick returns the next tick,
+		// so this self-sustains once started from Init.
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 
 	case productsLoadedMsg:
 		m.browseItems = msg.products
@@ -165,6 +187,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case errMsg:
+		m.addingToCart = false
 		return m, m.setStatus(msg.err.Error(), true)
 
 	case clearStatusMsg:
