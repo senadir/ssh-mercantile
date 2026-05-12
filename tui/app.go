@@ -80,6 +80,10 @@ type Model struct {
 	konamiBuf  []string
 	partyUntil time.Time
 	sparkles   []sparkleParticle
+
+	// pre-rendered product images, keyed by product ID. Render output is
+	// cached as a string so we don't re-encode ANSI on every redraw.
+	imageCache map[int]string
 }
 
 type endPartyMsg struct{}
@@ -250,6 +254,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.productIdx = 0
 		m.productLoading = false
+		// Kick off image fetch if we have a thumbnail and haven't
+		// already rendered this product's image.
+		if m.product != nil && len(m.product.Images) > 0 {
+			if _, cached := m.imageCache[m.product.ID]; !cached {
+				url := m.product.Images[0].Thumbnail
+				if url == "" {
+					url = m.product.Images[0].Src
+				}
+				return m, fetchImageCmd(m.product.ID, url)
+			}
+		}
+		return m, nil
+
+	case imageLoadedMsg:
+		if msg.err == nil {
+			if m.imageCache == nil {
+				m.imageCache = make(map[int]string)
+			}
+			m.imageCache[msg.productID] = msg.rendered
+		}
 		return m, nil
 
 	case errMsg:

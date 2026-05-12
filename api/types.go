@@ -45,6 +45,14 @@ type VariationRef struct {
 	Attributes []VariationAttribute `json:"attributes"`
 }
 
+type ProductImage struct {
+	ID        int    `json:"id"`
+	Src       string `json:"src"`
+	Thumbnail string `json:"thumbnail"`
+	Name      string `json:"name"`
+	Alt       string `json:"alt"`
+}
+
 type Product struct {
 	ID               int            `json:"id"`
 	Name             string         `json:"name"`
@@ -61,6 +69,7 @@ type Product struct {
 	Categories       []Category     `json:"categories"`
 	Attributes       []Attribute    `json:"attributes"`
 	Variations       []VariationRef `json:"variations"`
+	Images           []ProductImage `json:"images"`
 	Permalink        string         `json:"permalink"`
 }
 

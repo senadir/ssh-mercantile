@@ -216,7 +216,17 @@ func (m *Model) viewProduct() string {
 	if short == "" {
 		short = stripHTML(p.Description)
 	}
-	short = wrap(short, m.contentWidth())
+	// When the image sits to the left, the text column is narrower —
+	// wrap the description to match so it doesn't extend off-screen.
+	textWidth := m.contentWidth()
+	sideBySide := len(p.Images) > 0 && m.width >= sideBySideMinWidth
+	if sideBySide {
+		textWidth = m.width - imageCols - 4
+		if textWidth < 30 {
+			textWidth = 30
+		}
+	}
+	short = wrap(short, textWidth)
 
 	attrs := m.variationAttributes()
 
@@ -261,22 +271,47 @@ func (m *Model) viewProduct() string {
 		Focused: m.productIdx == len(attrs)+1,
 	})
 
-	blocks := []string{
-		"",
-		title,
-		price,
-		"",
-		styles.Subtle.Render(short),
+	// Product image (or a same-height placeholder so layout doesn't pop
+	// when the async fetch lands).
+	var imageBlock string
+	if rendered, ok := m.imageCache[p.ID]; ok {
+		imageBlock = rendered
+	} else if len(p.Images) > 0 {
+		placeholder := styles.Muted.Render("(loading image…)")
+		imageBlock = strings.Repeat("\n", imageRows/2) + placeholder + strings.Repeat("\n", imageRows/2-1)
 	}
+
+	// Build the text column (everything that's not the image).
+	textParts := []string{title, price, "", styles.Subtle.Render(short)}
 	if len(rows) > 0 {
-		blocks = append(blocks, "", styles.Muted.Render("Options"))
-		blocks = append(blocks, rows...)
+		textParts = append(textParts, "", styles.Muted.Render("Options"))
+		textParts = append(textParts, rows...)
 	}
 	indent := lipgloss.NewStyle().MarginLeft(2)
-	blocks = append(blocks, "", indent.Render(addBtn), "", indent.Render(backBtn))
+	textParts = append(textParts, "", indent.Render(addBtn), "", indent.Render(backBtn))
+	textBlock := lipgloss.JoinVertical(lipgloss.Left, textParts...)
 
+	if sideBySide && imageBlock != "" {
+		// Image left, text right with a 2-col gutter. Top-aligned so the
+		// image and the title share a baseline.
+		gutter := lipgloss.NewStyle().MarginLeft(2)
+		return "\n" + lipgloss.JoinHorizontal(lipgloss.Top, imageBlock, gutter.Render(textBlock))
+	}
+
+	// Stacked fallback for narrow terminals (or no image).
+	blocks := []string{""}
+	if imageBlock != "" {
+		blocks = append(blocks, imageBlock, "")
+	}
+	blocks = append(blocks, textBlock)
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }
+
+// sideBySideMinWidth is the terminal width at and above which we put the
+// product image next to the text column instead of stacked above. Image
+// is imageCols (30) wide, 2-col gutter, and we want at least 30 cols left
+// for buttons / description to breathe.
+const sideBySideMinWidth = 62
 
 func (m *Model) contentWidth() int {
 	if m.width < 20 {
