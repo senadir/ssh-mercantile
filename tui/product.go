@@ -272,6 +272,31 @@ func (m *Model) viewProduct() string {
 		blocks = append(blocks, "", styles.Muted.Render("Options"))
 		blocks = append(blocks, rows...)
 	}
+
+	// Details — attributes that aren't variation pickers. The web PDP puts
+	// these in the right sidebar; here they sit between Options and the
+	// action buttons. Covers both global (taxonomy-backed) attributes and
+	// per-product local ones — both come through Product.Attributes with
+	// HasVariations=false when not driving variants.
+	var detailsLines []string
+	for _, a := range p.Attributes {
+		if a.HasVariations {
+			continue
+		}
+		if len(a.Terms) == 0 {
+			continue
+		}
+		values := make([]string, 0, len(a.Terms))
+		for _, t := range a.Terms {
+			values = append(values, t.Name)
+		}
+		detailsLines = append(detailsLines, fmt.Sprintf("  %s: %s", a.Name, styles.Accent.Render(strings.Join(values, ", "))))
+	}
+	if len(detailsLines) > 0 {
+		blocks = append(blocks, "", styles.Muted.Render("Details"))
+		blocks = append(blocks, detailsLines...)
+	}
+
 	indent := lipgloss.NewStyle().MarginLeft(2)
 	blocks = append(blocks, "", indent.Render(addBtn), "", indent.Render(backBtn))
 
